@@ -59,3 +59,6 @@ COPY --chmod=0755 /scripts/*.sh .
 # network=host here means the network of the builder container
 # ... which is the custom one used for reverse ssh of vnc
 RUN --network=host --security=insecure ./launch-install.sh
+
+COPY --chmod=0755 entrypoint.sh .
+ENTRYPOINT ["/root/win-docker/entrypoint.sh"]
