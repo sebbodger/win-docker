@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 
+CONSTANTS_FILE="constants.sh"
+
+if [[ ! -f "$CONSTANTS_FILE" ]]; then
+    echo "Error: Constants file not found: $CONSTANTS_FILE" >&2
+    exit 1
+fi
+
+source "$CONSTANTS_FILE"
+
 # Global flags for interrupt handling and cleanup status
 INTERRUPT_RECEIVED=0
 CLEANUP_IN_PROGRESS=0
 ORIGINAL_EXIT_CODE=0
-
-# SSH connection details
-SSH_HOST="localhost"
-SSH_USER="quickemu"
-SSH_PORT=22220
 
 # Function to clean up processes and perform shutdown
 cleanup() {
@@ -35,7 +39,6 @@ cleanup() {
     else
         exit $ORIGINAL_EXIT_CODE
     fi
-
 }
 
 # Function to reset terminal output for clean display
@@ -63,24 +66,23 @@ reset_output() {
 # Function to shut down the VM
 shutdown_vm() {
     # Check if the Windows VM is running
-    if ! pgrep -x "windows-11" >/dev/null; then
+    if ! pgrep -x "$QUICKEMU_PROC" >/dev/null; then
         echo "Windows VM is not running. Skipping shutdown."
         return
     fi
 
     echo "Shutting down Windows VM..."
     # Attempt to send shutdown command to Windows
-    if ssh $SSH_USER@$SSH_HOST -p $SSH_PORT 'shutdown /s /t 0' &> /dev/null; then
-        
+    if ssh "$SSH_HOST" 'shutdown /s /t 0' &> /dev/null; then
         wait_for_vm_shutdown() {
-            ./wait-for-process.sh windows-11 120 &> /dev/null
+            ./wait-for-process.sh "$QUICKEMU_PROC" 120 &> /dev/null
         }
 
         # Wait for VM to shut down, showing a spinner
         if show_spinner "Waiting for Windows VM to shut down..." wait_for_vm_shutdown; then
             echo "Windows VM has shut down successfully."
         else
-            echo "Error: Timeout waiting for Windows VM to shut down. The VM will be forcefully terminated."
+            echo "Timeout waiting for Windows VM to shut down. The VM will be forcefully terminated."
         fi
     else
         echo "Failed to send shutdown command (perhaps it hasn't fully booted?). The VM will be forcefully terminated."
@@ -150,7 +152,7 @@ wait_for_windows() {
 # Function to connect via SSH, handling both interactive and non-interactive modes
 ssh_connect() {
     local cmd="$*"
-    local ssh_opts="-q -p $SSH_PORT $SSH_USER@$SSH_HOST"
+    local ssh_opts="-q $SSH_HOST"
 
     if [[ ${INTERACTIVE,,} == true ]]; then
         ssh_opts="-t $ssh_opts"
@@ -176,8 +178,8 @@ start_signal_monitor() {
     
     handle_interrupt() {
         local main_pid=$1
-        # Forcibly terminate any interactive SSH sessoins
-        kill -f "ssh.*-t" -P $main_pid || true
+        # Forcibly terminate any interactive SSH sessions
+        pkill -f "ssh.*-t" -P $main_pid || true
         # Now forward a signal to the main process
         kill -SIGUSR1 $main_pid
     }
@@ -206,26 +208,26 @@ main() {
 
     # Verify KVM availability
     if ! kvm-ok &> /dev/null; then
-        echo "Error: KVM acceleration is not available."
-        echo "Did you pass --device=/dev/kvm and is it accessible on the host?"
+        echo "Error: KVM acceleration is not available." >&2
+        echo "Did you pass --device=/dev/kvm and is it accessible on the host?" >&2
         exit 1
     fi
 
     # Start VM with visual feedback
     if ! show_spinner "Starting VM..." start_vm; then
-        echo "Error: Failed to start the VM."
+        echo "Error: Failed to start the VM." >&2
         exit 1
     fi
 
     # Ensure Windows is online before proceeding
     if ! wait_for_windows; then
-        echo "Error: Failed to establish a connection to Windows VM within the timeout period."
+        echo "Error: Failed to establish a connection to Windows VM within the timeout period." >&2
         exit 1
     fi
 
     # Handle SSH connection or command execution, filtering out connection closed messages
     if ! ssh_connect "$@" 2> >(grep -vE "Connection to .* closed by remote host\." >&2); then
-        echo "Error: SSH connection failed"
+        echo "Error: SSH connection failed" >&2
         exit 1
     fi
 }

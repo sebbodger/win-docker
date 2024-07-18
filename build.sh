@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 
-CONTAINER_TAG="win-docker"
-VNC_CONTAINER_NAME="vnc-win-install-watcher"
-NETWORK_NAME="win-docker-builder"
-BUILDER_ID="builder-37996e70662e58b06"
+CONSTANTS_FILE="constants.sh"
+
+if [[ ! -f "$CONSTANTS_FILE" ]]; then
+    echo "Error: Constants file not found: $CONSTANTS_FILE" >&2
+    exit 1
+fi
+
+source "$CONSTANTS_FILE"
 
 # check if the network already exists, instantiate it if not
 docker network inspect $NETWORK_NAME &>/dev/null || docker network create $NETWORK_NAME
@@ -29,7 +33,7 @@ docker buildx inspect $BUILDER_ID &>/dev/null || docker buildx create \
     --buildkitd-flags '--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host'
 
 docker buildx build . \
-    -t $CONTAINER_TAG \
+    -t $APP_NAME \
     --load \
     --builder=$BUILDER_ID \
     --allow security.insecure \
