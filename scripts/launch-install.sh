@@ -8,10 +8,12 @@ source "constants.sh"
 ssh -fN -R 5900:localhost:5900 linuxserver.io@"$VNC_CONTAINER_NAME" -p 2222 -o StrictHostKeyChecking=no
 
 # start quickemu
-./launch-quickemu.sh
+echo "Starting VM..."
+./launch-quickemu.sh &> /dev/null
 
 # keep polling until ssh is accessible (i.e. installation & post-install config is complete)
 # => allow 2 hours for the install to complete
+echo "Waiting for post-install SSH server availability..."
 ./poll-ssh.sh -h "$SSH_HOST" -a 240 -d 30
 
 # set-up key-based authentication in the windows image
