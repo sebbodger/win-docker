@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 
-set -e
+CONSTANTS_FILE="constants.sh"
 
-source "constants.sh"
+if [[ ! -f "$CONSTANTS_FILE" ]]; then
+    echo "Error: Constants file not found: $CONSTANTS_FILE" >&2
+    exit 1
+fi
+
+source "$CONSTANTS_FILE"
 
 PUSH_IMAGE=false
 while [[ "$#" -gt 0 ]]; do
@@ -47,13 +52,20 @@ docker buildx build . \
     --allow security.insecure \
     --allow network.host
 
+build_status=$?
+
 docker stop $VNC_CONTAINER_NAME > /dev/null
 
-if [ "$PUSH_IMAGE" = true ] ; then
+if [ $build_status -ne 0 ]; then
+    echo "Error: Build did not complete successfully" >&2
+    exit 1
+fi
+
+# Tag the image as latest
+docker tag $DOCKERHUB_USER/$APP_NAME:$VERSION $DOCKERHUB_USER/$APP_NAME:latest
+
+if  [ "$PUSH_IMAGE" = true ]; then    
     echo "Pushing image to Docker Hub..."
-    
-    # Tag the image as latest
-    docker tag $DOCKERHUB_USER/$APP_NAME:$VERSION $DOCKERHUB_USER/$APP_NAME:latest
 
     # Push the versioned image
     docker push $DOCKERHUB_USER/$APP_NAME:$VERSION
