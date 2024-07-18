@@ -68,10 +68,16 @@ if  [ "$PUSH_IMAGE" = true ]; then
     echo "Pushing image to Docker Hub..."
 
     # Push the versioned image
-    docker push $DOCKERHUB_USER/$APP_NAME:$VERSION
+    if ! docker push $DOCKERHUB_USER/$APP_NAME:$VERSION; then
+        echo "Error: Failed to push $DOCKERHUB_USER/$APP_NAME:$VERSION" >&2
+        exit 1
+    fi
 
     # Push the latest tag
-    docker push $DOCKERHUB_USER/$APP_NAME:latest
+    if ! docker push $DOCKERHUB_USER/$APP_NAME:latest; then
+        echo "Error: Failed to push $DOCKERHUB_USER/$APP_NAME:latest" >&2
+        exit 1
+    fi
 
     echo "Successfully built and pushed $DOCKERHUB_USER/$APP_NAME:$VERSION and $DOCKERHUB_USER/$APP_NAME:latest"
 fi
