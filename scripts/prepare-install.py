@@ -102,31 +102,11 @@ def create_unattend_xml():
 
     # add additional first-logon commands
 
-    # "cmd.exe /c echo Waiting 30 seconds before mapping network drive... && timeout /t 30 /nobreak && net use H: \\10.0.2.4\qemu /persistent:yes",
-
-
-    # commands = [
-    #     "cmd.exe /c netsh advfirewall firewall set rule group='Network Discovery' new enable=Yes",
-    #     "cmd.exe /c netsh advfirewall firewall set rule group='File and Printer Sharing' new enable=Yes",
-    #     "powershell -New-PSDrive -Name 'H' -PSProvider FileSystem -Root '\\10.0.2.4\qemu' -Persist",
-    #     "powershell Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0",
-    #     "powershell Start-Service sshd",
-    #     "powershell Set-Service -Name sshd -StartupType 'Automatic'"
-    # ]
-
-    # commands = [
-    #     'cmd.exe /c netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes',
-    #     'cmd.exe /c netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes',
-    #     'cmd.exe /c net use H: \\\\10.0.2.4\\qemu /user:quickemu /persistent:yes',
-    #     'powershell Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0',
-    #     'powershell Start-Service sshd',
-    #     'powershell Set-Service -Name sshd -StartupType Automatic'
-    # ]
-
     commands = [
         r'cmd.exe /c netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes',
         r'cmd.exe /c netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes',
-        r'cmd.exe /c net use H: \\10.0.2.4\qemu /user:Quickemu /persistent:yes',
+        r'cmd.exe /c reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLinkedConnections /t REG_DWORD /d 1 /f',
+        r'cmd.exe /c net use H: \\10.0.2.4\qemu /persistent:yes',
         r'powershell.exe -Command "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0"',
         r'powershell.exe -Command "Start-Service sshd"',
         r'powershell.exe -Command "Set-Service -Name sshd -StartupType Automatic"'

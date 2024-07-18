@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
 
-# Exit immediately if a command exits with a non-zero status
-set -e
-
 # Global flags for interrupt handling and cleanup status
-export INTERRUPT_RECEIVED=0
-export CLEANUP_IN_PROGRESS=0
+INTERRUPT_RECEIVED=0
+CLEANUP_IN_PROGRESS=0
+ORIGINAL_EXIT_CODE=0
 
 # SSH connection details
 SSH_HOST="localhost"
 SSH_USER="quickemu"
 SSH_PORT=22220
-
-# Keep alive configuration (defaults to true if not set)
-KEEP_ALIVE=${KEEP_ALIVE:-true}
 
 # Function to clean up processes and perform shutdown
 cleanup() {
@@ -38,8 +33,9 @@ cleanup() {
     if ((INTERRUPT_RECEIVED == 1)); then
         exit 1
     else
-        exit 0
+        exit $ORIGINAL_EXIT_CODE
     fi
+
 }
 
 # Function to reset terminal output for clean display
@@ -75,7 +71,6 @@ shutdown_vm() {
     echo "Shutting down Windows VM..."
     # Attempt to send shutdown command to Windows
     if ssh $SSH_USER@$SSH_HOST -p $SSH_PORT 'shutdown /s /t 0' &> /dev/null; then
-        echo "Shutdown command sent successfully."
         
         wait_for_vm_shutdown() {
             ./wait-for-process.sh windows-11 120 &> /dev/null
@@ -148,7 +143,6 @@ wait_for_windows() {
         echo "Windows is online!"
         return 0
     else
-        echo "Error: Failed to establish a connection to Windows VM within the timeout period."
         return 1
     fi
 }
@@ -175,37 +169,31 @@ ssh_connect() {
     fi
 }
 
-# Function to keep the container running if KEEP_ALIVE is set
-keep_alive() {
-    if [[ ${KEEP_ALIVE,,} == "true" ]]; then
-        echo "Persisting container..."
-        while true; do
-            sleep 1
-        done
-    fi
-}
-
 # Function to start signal monitor for handling interrupts
 start_signal_monitor() {
-    trap 'handle_interrupt' SIGINT SIGTERM SIGHUP SIGQUIT
+    local main_pid=$1
+    trap 'handle_interrupt $main_pid' SIGINT SIGTERM SIGHUP SIGQUIT
     
     handle_interrupt() {
-        INTERRUPT_RECEIVED=1
-        pkill ssh || true
-        kill -SIGUSR1 $$
+        local main_pid=$1
+        # Forcibly terminate any interactive SSH sessoins
+        kill -f "ssh.*-t" -P $main_pid || true
+        # Now forward a signal to the main process
+        kill -SIGUSR1 $main_pid
     }
-    
+
     while true; do
         sleep 1
     done
 }
 
-# Start the signal monitor in the background
-start_signal_monitor &
-MONITOR_PID=$!
-
 # Handle script completion and interrupts in the main process
-trap 'cleanup' EXIT SIGUSR1
+trap 'ORIGINAL_EXIT_CODE=$?; cleanup' EXIT
+trap 'INTERRUPT_RECEIVED=1; cleanup' SIGUSR1
+
+# Start the signal monitor in the background
+start_signal_monitor $$ &
+MONITOR_PID=$!
 
 # Main function to orchestrate the script's operations
 main() {
@@ -231,15 +219,14 @@ main() {
 
     # Ensure Windows is online before proceeding
     if ! wait_for_windows; then
+        echo "Error: Failed to establish a connection to Windows VM within the timeout period."
         exit 1
     fi
 
     # Handle SSH connection or command execution, filtering out connection closed messages
-    ssh_connect "$@" 2> >(grep -vE "Connection to .* closed by remote host\." >&2)
-
-    # Keep the container running if necessary
-    if [[ ${INTERACTIVE,,} == "false" ]] || [[ ${KEEP_ALIVE,,} == "true" ]]; then
-        keep_alive
+    if ! ssh_connect "$@" 2> >(grep -vE "Connection to .* closed by remote host\." >&2); then
+        echo "Error: SSH connection failed"
+        exit 1
     fi
 }
 

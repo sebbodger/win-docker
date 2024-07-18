@@ -1,2 +1,11 @@
+Host qe-win
+    HostName localhost
+    User quickemu
+    Port 22220
+    StrictHostKeyChecking no
+    ConnectTimeout 10
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+
 Host localhost
     StrictHostKeyChecking no
