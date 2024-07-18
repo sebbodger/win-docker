@@ -8,11 +8,10 @@ readonly DEFAULT_PORT=22220
 
 # Usage
 usage() {
-  echo "Usage: $0 [-a MAX_ATTEMPTS] [-d DELAY] [-h HOST] [-p PORT]"
+  echo "Usage: $0 [-a MAX_ATTEMPTS] [-d DELAY] [-h HOST[:PORT]]"
   echo "  -a MAX_ATTEMPTS   Maximum number of attempts (default: $DEFAULT_MAX_ATTEMPTS)"
   echo "  -d DELAY          Delay between attempts in seconds (default: $DEFAULT_DELAY)"
-  echo "  -h HOST           SSH server hostname or IP address (default: $DEFAULT_HOST)"
-  echo "  -p PORT           SSH server port (default: $DEFAULT_PORT)"
+  echo "  -h HOST[:PORT]    SSH server hostname or IP address, optionally with port (default: $DEFAULT_HOST:$DEFAULT_PORT)"
   exit 1
 }
 
@@ -23,7 +22,7 @@ host="$DEFAULT_HOST"
 port="$DEFAULT_PORT"
 
 # Parse arguments
-while getopts ":a:d:h:p:" opt; do
+while getopts ":a:d:h:" opt; do
   case ${opt,,} in
     a)
       if ((OPTARG <= 0)); then
@@ -40,14 +39,14 @@ while getopts ":a:d:h:p:" opt; do
       delay="$OPTARG"
       ;;
     h)
-      host="$OPTARG"
-      ;;
-    p)
-      if ((OPTARG <= 0)); then
-        echo "Error: Invalid value for -p. Must be a positive integer."
+      # Split host and port if provided
+      IFS=':' read -r host port <<< "$OPTARG"
+      if [[ -z "$port" ]]; then
+        port="$DEFAULT_PORT"
+      elif ! [[ "$port" =~ ^[0-9]+$ ]]; then
+        echo "Error: Invalid port number."
         usage
       fi
-      port="$OPTARG"
       ;;
     *)
       echo "Error: Unknown option -$OPTARG"
@@ -56,23 +55,29 @@ while getopts ":a:d:h:p:" opt; do
   esac
 done
 
-# Wait for SSH server to be available
-# https://stackoverflow.com/questions/35741323/how-to-find-if-remote-host-is-reachable-over-ssh-without-actually-doing-ssh
+# Function to construct SSH command
+construct_ssh_command() {
+  local ssh_cmd="ssh $host"
+  if [[ "$port" != "22" ]]; then
+    ssh_cmd+=" -p $port"
+  fi
+  ssh_cmd+=" -o ConnectTimeout=2"
+  ssh_cmd+=" -o PubkeyAuthentication=no"
+  ssh_cmd+=" -o PasswordAuthentication=no"
+  ssh_cmd+=" -o KbdInteractiveAuthentication=no"
+  ssh_cmd+=" -o ChallengeResponseAuthentication=no"
+  ssh_cmd+=" -o BatchMode=true"
+  echo "$ssh_cmd"
+}
 
+# Wait for SSH server to be available
 for ((attempt_count=1; attempt_count<=max_attempts; attempt_count++)); do
-  if ssh $host -p $port \
-    -o ConnectTimeout=2 \
-    -o PubkeyAuthentication=no \
-    -o PasswordAuthentication=no \
-    -o KbdInteractiveAuthentication=no \
-    -o ChallengeResponseAuthentication=no \
-    -o BatchMode=true 2>&1 | fgrep -q "Permission denied"; 
-  then
+  if eval "$(construct_ssh_command)" 2>&1 | fgrep -q "Permission denied"; then
     echo "Connected to SSH server $host:$port"
     exit 0
   fi
   sleep "$delay"
 done
 
-echo "Error: Failed to connect to SSH server after $max_attempts attempts."
+echo "Error: Failed to connect to SSH server after $max_attempts attempts." >&2
 exit 1

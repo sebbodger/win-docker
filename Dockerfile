@@ -40,7 +40,6 @@ RUN apt-get update \
     sshpass
 
 COPY --chmod=0600 /ssh/* /root/.ssh/
-COPY --chmod=0755 /scripts/exp.sh /usr/bin/exp
 
 WORKDIR /root/win-docker/
 RUN mkdir samba \
@@ -55,9 +54,10 @@ RUN python3 prepare-install.py
 # now copy everything else
 COPY /scripts/*.py .
 COPY --chmod=0755 /scripts/*.sh .
+COPY constants.sh .
 
 # network=host here means the network of the builder container
-# ... which is the custom one used for reverse ssh of vnc
+# ... which is the custom one used for reverse forwarding vnc
 RUN --network=host --security=insecure ./launch-install.sh
 
 COPY --chmod=0755 entrypoint.sh .

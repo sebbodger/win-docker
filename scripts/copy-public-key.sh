@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 
+CONSTANTS_FILE="constants.sh"
+
+if [[ ! -f "$CONSTANTS_FILE" ]]; then
+    echo "Error: Constants file not found: $CONSTANTS_FILE" >&2
+    exit 1
+fi
+
+source "$CONSTANTS_FILE"
+
 # Path to your public key
 public_key="/root/.ssh/id_rsa.pub"
 
 # Check if the public key exists
 if [ ! -f "$public_key" ]; then
-    echo "Public key not found at $public_key"
-    echo "Generate a key pair using ssh-keygen or specify the correct path."
+    echo "Public key not found at $public_key" >&2
     exit 1
 fi
 
@@ -18,14 +26,10 @@ write_key="powershell.exe -Command \"Add-Content -Path C:/ProgramData/ssh/admini
 set_permissions="icacls.exe C:/ProgramData/ssh/administrators_authorized_keys /inheritance:r /grant \"Administrators:F\" /grant \"SYSTEM:F\""
 
 # Use SSH to execute the commands on the remote Windows machine
-# exp "quickemu" ssh quickemu@localhost -p 22220 "$write_key && $set_permissions"
-sshpass -p "quickemu" ssh quickemu@localhost -p 22220 "$write_key && $set_permissions"
-
-# Check if the SSH command was successful
-if [ $? -eq 0 ]; then
+if sshpass -p "$SSH_PASS" ssh "$SSH_HOST" "$write_key && $set_permissions"; then
     echo "Public key successfully copied to the remote Windows machine."
 else
-    echo "Failed to copy the public key. Please check your credentials and try again."
+    echo "Failed to copy the public key. Please check your credentials and try again." >&2
     exit 1
 fi
 
@@ -33,11 +37,9 @@ echo "Waiting for changes to take effect..."
 sleep 5
 
 echo "Testing SSH connection with the new key..."
-ssh quickemu@localhost -p 22220 exit
-
-if [ $? -eq 0 ]; then
+if ssh "$SSH_HOST" exit; then
     echo "SSH connection successful. Key-based authentication is working."
 else
-    echo "SSH connection failed. Please check your configuration and try again."
+    echo "SSH connection failed. Please check your configuration and try again." >&2
     exit 1
 fi
