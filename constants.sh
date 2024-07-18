@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 readonly SSH_HOST="qe-win"
 readonly SSH_PASS="quickemu"
 
 readonly QUICKEMU_PROC="windows-11"
 
-readonly DOCKERHUB_USER="seb"
+readonly DOCKERHUB_USER="sebbodger"
 readonly APP_NAME="win-docker"
 readonly VNC_CONTAINER_NAME="vnc-win-install-watcher"
 readonly NETWORK_NAME="win-docker-builder"
